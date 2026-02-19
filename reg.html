@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Meeting Rec - Goriziane</title>
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    
+    <style>
+        :root {
+            --primary: #0f3b7a;
+            --danger: #d32f2f;
+            --bg: #f5f7fb;
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            text-align: center;
+            width: 90%;
+            max-width: 400px;
+            padding: 20px;
+            background: white;
+            border-radius: 24px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+
+        header img {
+            max-width: 150px;
+            margin-bottom: 20px;
+        }
+
+        #timer {
+            font-size: 48px;
+            font-weight: bold;
+            margin: 20px 0;
+            font-variant-numeric: tabular-nums;
+        }
+
+        #status {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 30px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Pulsante di Registrazione */
+        .rec-btn {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            border: none;
+            background-color: var(--danger);
+            box-shadow: 0 0 0 10px rgba(211, 47, 47, 0.1);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            margin: 0 auto;
+            outline: none;
+        }
+
+        .rec-btn:active {
+            transform: scale(0.9);
+        }
+
+        .rec-btn .icon {
+            width: 40px;
+            height: 40px;
+            background-color: white;
+            transition: all 0.3s ease;
+            border-radius: 50%;
+        }
+
+        /* Stato "In registrazione" */
+        .rec-btn.recording {
+            animation: pulse 1.5s infinite;
+            background-color: #222;
+        }
+
+        .rec-btn.recording .icon {
+            border-radius: 4px;
+            transform: scale(0.8);
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0px rgba(211, 47, 47, 0.4); }
+            100% { box-shadow: 0 0 0 20px rgba(211, 47, 47, 0); }
+        }
+
+        .footer {
+            margin-top: 40px;
+            font-size: 12px;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <div style="font-weight: bold; color: var(--primary); font-size: 24px;">FUTURA-G</div>
+            <div style="font-size: 12px; color: var(--primary);">Goriziane Intelligence</div>
+        </header>
+
+        <div id="timer">00:00</div>
+        <div id="status">Pronto per iniziare</div>
+
+        <button id="recButton" class="rec-btn">
+            <div class="icon"></div>
+        </button>
+
+        <div class="footer">
+            Tocca per registrare il meeting
+        </div>
+    </div>
+
+    <script>
+        let mediaRecorder;
+        let audioChunks = [];
+        let startTime;
+        let timerInterval;
+        const recButton = document.getElementById('recButton');
+        const timerDisplay = document.getElementById('timer');
+        const statusDisplay = document.getElementById('status');
+
+        recButton.onclick = async () => {
+            if (!mediaRecorder || mediaRecorder.state === 'inactive') {
+                startRecording();
+            } else {
+                stopRecording();
+            }
+        };
+
+        async function startRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+
+                mediaRecorder.ondataavailable = (event) => {
+                    audioChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                    sendEmail(audioBlob);
+                };
+
+                mediaRecorder.start();
+                startTime = Date.now();
+                updateTimer();
+                timerInterval = setInterval(updateTimer, 1000);
+
+                recButton.classList.add('recording');
+                statusDisplay.innerText = "In registrazione...";
+                statusDisplay.style.color = "red";
+            } catch (err) {
+                alert("Errore nell'accesso al microfono. Assicurati di usare HTTPS.");
+            }
+        }
+
+        function stopRecording() {
+            mediaRecorder.stop();
+            clearInterval(timerInterval);
+            recButton.classList.remove('recording');
+            statusDisplay.innerText = "Preparazione email...";
+            statusDisplay.style.color = "#666";
+            timerDisplay.innerText = "00:00";
+        }
+
+        function updateTimer() {
+            const elapsed = Math.floor((Date.now() - startTime) / 1000);
+            const mins = Math.floor(elapsed / 60).toString().padStart(2, '0');
+            const secs = (elapsed % 60).toString().padStart(2, '0');
+            timerDisplay.innerText = `${mins}:${secs}`;
+        }
+
+        function sendEmail(blob) {
+            const dateStr = new Date().toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            const fileName = `Meeting_${dateStr.replace(/\//g, '-')}.wav`;
+            
+            // Creiamo un link per il download temporaneo (opzionale, utile per debug)
+            const file = new File([blob], fileName, { type: 'audio/wav' });
+
+            const recipient = "ugo.padulosi@goriziane.it";
+            const subject = encodeURIComponent(`Registrazione Meeting - ${dateStr}`);
+            const body = encodeURIComponent(`In allegato la registrazione del meeting effettuata il ${dateStr}.\n\n(Se l'audio è troppo grande, Outlook suggerirà il caricamento su OneDrive).`);
+
+            // Nota tecnica: Il protocollo mailto non supporta l'allegato automatico per motivi di sicurezza browser.
+            // L'utente dovrà selezionare l'audio dai file recenti dopo che si è aperto Outlook.
+            // Per una demo al management, questo apre Outlook pronto per l'invio.
+            
+            const mailtoUrl = `mailto:${recipient}?subject=${subject}&body=${body}`;
+            
+            // Proviamo a scaricare il file nel telefono così è il primo della lista "Recenti" quando si allega
+            const a = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+            a.href = url;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            
+            // Apriamo Outlook
+            setTimeout(() => {
+                window.location.href = mailtoUrl;
+                statusDisplay.innerText = "Tocca 'Allega' in Outlook";
+            }, 1000);
+        }
+    </script>
+</body>
+</html>
